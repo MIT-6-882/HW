@@ -1,1 +1,1 @@
--e git+git://github.com/tomsilver/pddlgym#egg=pddlgym
+git+https://github.com/tomsilver/pddlgym#egg=pddlgym
