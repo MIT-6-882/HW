@@ -1,4 +1,7 @@
-from utils import render_from_layout, get_asset_path
+try:
+    from .utils import render_from_layout, get_asset_path
+except ImportError:
+    from utils import render_from_layout, get_asset_path
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -17,18 +20,18 @@ class WaterDeliveryEnv:
     OBJECTS = ROBOT, ROBOT_WITH_WATER, WATER, PERSON, QUENCHED_PERSON = range(5)
 
     # Create a default layout
-    DEFAULT_LAYOUT = np.zeros((15, 15, len(OBJECTS)), dtype=bool)
-    DEFAULT_LAYOUT[14, 7, ROBOT] = 1
-    DEFAULT_LAYOUT[0, 14, WATER] = 1
-    DEFAULT_LAYOUT[3, 1, PERSON] = 1
-    DEFAULT_LAYOUT[7, 1, PERSON] = 1
-    DEFAULT_LAYOUT[11, 1, PERSON] = 1
+    DEFAULT_LAYOUT = np.zeros((5, 5, len(OBJECTS)), dtype=bool)
+    DEFAULT_LAYOUT[4, 2, ROBOT] = 1
+    DEFAULT_LAYOUT[0, 4, WATER] = 1
+    DEFAULT_LAYOUT[1, 0, PERSON] = 1
+    DEFAULT_LAYOUT[2, 0, PERSON] = 1
+    DEFAULT_LAYOUT[3, 0, PERSON] = 1
 
     # Actions
     ACTIONS = UP, DOWN, LEFT, RIGHT = range(4)
 
     # Reward for quenching
-    QUENCH_REWARD = 100
+    QUENCH_REWARD = 0.1
 
     # For rendering
     TOKEN_IMAGES = {
@@ -37,6 +40,14 @@ class WaterDeliveryEnv:
         WATER : plt.imread(get_asset_path('water.png')),
         PERSON : plt.imread(get_asset_path('person.png')),
         QUENCHED_PERSON : plt.imread(get_asset_path('quenched_person.png')),
+    }
+
+    OBJECT_CHARS = {
+        ROBOT : "R",
+        ROBOT_WITH_WATER : "R",
+        WATER : "W",
+        PERSON : "P",
+        QUENCHED_PERSON : "X",
     }
 
     def __init__(self, layout=None):
@@ -51,7 +62,7 @@ class WaterDeliveryEnv:
 
     def step(self, action):
         # Start out reward at 0
-        reward = 0.
+        reward = 0
 
         # Move the robot
         rob_r, rob_c = None, None
@@ -94,8 +105,8 @@ class WaterDeliveryEnv:
 
         return self.get_state(), reward, done, {}
 
-    def render(self):
-        return render_from_layout(self._layout, self._get_token_images, dpi=50)
+    def render(self, dpi=150):
+        return render_from_layout(self._layout, self._get_token_images, dpi=dpi)
 
     def _get_token_images(self, obs_cell):
         images = []
@@ -105,6 +116,12 @@ class WaterDeliveryEnv:
                 images.append(self.TOKEN_IMAGES[token])
         return images
 
+    def state_to_str(self, state):
+        layout = np.full(self._initial_layout.shape[:2], "O", dtype=object)
+        for i, j, k in state:
+            layout[i, j] = self.OBJECT_CHARS[k]
+        return '\n' + '\n'.join(''.join(row) for row in layout)
+
     def get_state(self):
         return tuple(sorted(map(tuple, np.argwhere(self._layout))))
 
@@ -113,15 +130,36 @@ class WaterDeliveryEnv:
         for i, j, k in state:
             self._layout[i, j, k] = 1
 
+    def compute_reward(self, state, action):
+        original_state = self.get_state()
+        self.set_state(state)
+        _, reward, _, _ = self.step(action)
+        self.set_state(original_state)
+        return reward
+
+    def compute_transition(self, state, action):
+        original_state = self.get_state()
+        self.set_state(state)
+        next_state, _, _, _ = self.step(action)
+        self.set_state(original_state)
+        return next_state
+
+    def compute_done(self, state, action):
+        original_state = self.get_state()
+        self.set_state(state)
+        _, _, done, _ = self.step(action)
+        self.set_state(original_state)
+        return done
 
 if __name__ == "__main__":
     import imageio
 
-    max_num_steps = 100
-    use_default_layout = True
+    max_num_steps = 1000
+    use_default_layout = False
 
     if use_default_layout:
         layout = None
+        dpi = 50
     else:
         layout = np.zeros((5, 5, len(WaterDeliveryEnv.OBJECTS)), dtype=bool)
         layout[4, 2, WaterDeliveryEnv.ROBOT] = 1
@@ -129,11 +167,12 @@ if __name__ == "__main__":
         layout[1, 0, WaterDeliveryEnv.PERSON] = 1
         layout[2, 0, WaterDeliveryEnv.PERSON] = 1
         layout[3, 0, WaterDeliveryEnv.PERSON] = 1
+        dpi = 150
 
     images = []
     env = WaterDeliveryEnv(layout)
     state, _ = env.reset()
-    images.append(env.render())
+    images.append(env.render(dpi=dpi))
     print("Initial state:", state)
     for _ in range(max_num_steps):
         action = np.random.choice(env.ACTIONS)
@@ -141,7 +180,7 @@ if __name__ == "__main__":
         state, reward, done, _ = env.step(action)
         print("State:", state)
         print("Reward, Done:", reward, done)
-        images.append(env.render())
+        images.append(env.render(dpi=dpi))
         if done:
             break
     outfile = "/tmp/water_delivery_random_actions.mp4"
