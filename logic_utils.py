@@ -3,7 +3,7 @@
 The main change is that we're going to use a modern SAT solver, rather
 than the implementations in AIMA, because we need inference to be fast.
 """
-from aima_utils import remove_all, unique, first, probability, isnumber, issequence, \
+from .aima_utils import remove_all, unique, first, probability, isnumber, issequence, \
                        Expr, expr, subexpressions, extend
 from pysat.formula import CNF
 from pysat.solvers import Lingeling, Glucose3, Glucose4, Minisat22
